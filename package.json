@@ -1,0 +1,20 @@
+{
+  "name": "@postlark/mcp-server",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "MCP server for Postlark — AI-native blog platform",
+  "bin": {
+    "postlark-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["mcp", "blog", "ai", "postlark"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7"
+  }
+}
