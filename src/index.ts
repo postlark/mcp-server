@@ -117,16 +117,22 @@ server.tool(
   },
 )
 
-// ─── schedule_post (API 미구현 → 안내) ───
+// ─── schedule_post (Creator+ 전용) ───
 server.tool(
   'schedule_post',
-  'Schedule a post for future publication (Creator+ plan required). Coming soon.',
+  'Schedule a post for future publication. Requires Creator plan or above.',
   {
     slug: z.string().describe('Post slug'),
-    scheduled_at: z.string().describe('Publication date/time in ISO 8601 format'),
+    scheduled_at: z.string().describe('Publication date/time in ISO 8601 format (e.g. 2026-04-01T09:00:00Z)'),
   },
-  async () => {
-    return { content: [{ type: 'text', text: 'Schedule post feature is coming soon. You can create posts as "draft" and publish them later.' }], isError: true as const }
+  async (args) => {
+    try {
+      const result = await apiCall<{ slug: string; status: string; scheduled_at: string }>(`/posts/${args.slug}/schedule`, {
+        method: 'POST',
+        body: { scheduled_at: args.scheduled_at },
+      })
+      return { content: [{ type: 'text', text: `Post "${result.slug}" scheduled for ${result.scheduled_at}` }] }
+    } catch (err) { return errorResult(err) }
   },
 )
 
