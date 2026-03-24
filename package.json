@@ -1,24 +1,37 @@
 {
   "name": "@postlark/mcp-server",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
-  "description": "MCP server for Postlark — AI-native blog platform",
+  "description": "MCP server for Postlark — AI-native blog publishing via Claude Code",
   "bin": {
     "postlark-mcp": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
     "clean": "rm -rf dist"
   },
   "keywords": [
     "mcp",
     "blog",
     "ai",
-    "postlark"
+    "postlark",
+    "publishing",
+    "claude",
+    "model-context-protocol"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/postlark/postlark"
+  },
+  "homepage": "https://postlark.ai",
   "devDependencies": {
     "@types/node": "^25.5.0",
     "typescript": "^5.7"
