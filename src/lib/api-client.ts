@@ -36,8 +36,10 @@ export async function apiCall<T>(
   })
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
-    const msg = (error as { message: string }).message
+    const body = await res.json().catch(() => ({ error: 'unknown', message: res.statusText }))
+    const msg = (body as { message?: string }).message
+      || (body as { error?: string }).error
+      || res.statusText
     throw new PostlarkApiError(res.status, formatError(res.status, msg))
   }
 
