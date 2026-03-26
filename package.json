@@ -1,6 +1,9 @@
 {
   "name": "@postlark/mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "description": "MCP server for Postlark — AI-native blog publishing via Claude Code",
   "bin": {
