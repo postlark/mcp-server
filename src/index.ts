@@ -197,6 +197,9 @@ server.tool(
   },
 )
 
-// 서버 시작
-const transport = new StdioServerTransport()
-await server.connect(transport)
+// 서버 시작 (Node 12 호환: top-level await 대신 async IIFE)
+async function main() {
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+}
+main().catch((err) => { console.error('MCP server failed:', err); process.exit(1) })
