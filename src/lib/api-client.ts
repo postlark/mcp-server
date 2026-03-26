@@ -16,6 +16,7 @@ export async function apiCall<T>(
   opts: {
     method?: string
     body?: unknown
+    blogId?: string
   } = {},
 ): Promise<T> {
   const apiKey = process.env.POSTLARK_API_KEY
@@ -26,12 +27,15 @@ export async function apiCall<T>(
     )
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  }
+  if (opts.blogId) headers['X-Blog-Id'] = opts.blogId
+
   const res = await fetch(`${API_BASE}${path}`, {
     method: opts.method ?? 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   })
 

@@ -7,7 +7,7 @@ import { apiCall, PostlarkApiError } from './lib/api-client.js'
 
 const server = new McpServer({
   name: 'postlark',
-  version: '0.1.0',
+  version: '0.2.0',
 })
 
 /** 에러를 사용자 친화적 메시지로 변환 */
@@ -18,6 +18,55 @@ function errorResult(err: unknown) {
     : 'Unknown error'
   return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true as const }
 }
+
+/** 활성 블로그 ID를 반환 (set_active_blog로 설정된 값 우선) */
+function getActiveBlogId(): string | undefined {
+  return process.env.POSTLARK_ACTIVE_BLOG || undefined
+}
+
+// ─── list_blogs ───
+server.tool(
+  'list_blogs',
+  'List all blogs owned by the current user.',
+  {},
+  async () => {
+    try {
+      const result = await apiCall<{
+        data: Array<{ id: string; slug: string; name: string; description: string; custom_domain: string | null }>
+      }>('/blogs')
+      const activeBlog = getActiveBlogId()
+      const lines = result.data.map((b) => {
+        const active = b.id === activeBlog ? ' (active)' : ''
+        const domain = b.custom_domain ? ` [${b.custom_domain}]` : ''
+        return `- ${b.name} (${b.slug})${domain}${active}\n  ID: ${b.id}`
+      })
+      return { content: [{ type: 'text', text: `${result.data.length} blog(s)\n\n${lines.join('\n')}` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
+// ─── set_active_blog ───
+server.tool(
+  'set_active_blog',
+  'Set the active blog for subsequent commands. Use list_blogs to find blog IDs.',
+  {
+    blog_id: z.string().describe('Blog ID to set as active'),
+  },
+  async (args) => {
+    try {
+      // Verify the blog exists and is owned by the user
+      const blogs = await apiCall<{
+        data: Array<{ id: string; name: string; slug: string }>
+      }>('/blogs')
+      const blog = blogs.data.find((b) => b.id === args.blog_id)
+      if (!blog) {
+        return { content: [{ type: 'text', text: `Error: Blog "${args.blog_id}" not found. Use list_blogs to see your blogs.` }], isError: true as const }
+      }
+      process.env.POSTLARK_ACTIVE_BLOG = args.blog_id
+      return { content: [{ type: 'text', text: `Active blog set to "${blog.name}" (${blog.slug})\nID: ${blog.id}\nAll subsequent commands will target this blog.` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
 
 // ─── create_post ───
 server.tool(
@@ -35,6 +84,7 @@ server.tool(
       const result = await apiCall<{ id: string; slug: string; url: string; status: string }>('/posts', {
         method: 'POST',
         body: { title: args.title, content: args.content, slug: args.slug, tags: args.tags, status: args.status ?? 'published' },
+        blogId: getActiveBlogId(),
       })
       return { content: [{ type: 'text', text: `Post created: ${result.url}\nSlug: ${result.slug}\nStatus: ${result.status}` }] }
     } catch (err) { return errorResult(err) }
@@ -57,7 +107,7 @@ server.tool(
       if (args.title !== undefined) body.title = args.title
       if (args.content !== undefined) body.content = args.content
       if (args.tags !== undefined) body.tags = args.tags
-      await apiCall(`/posts/${args.slug}`, { method: 'PUT', body })
+      await apiCall(`/posts/${args.slug}`, { method: 'PUT', body, blogId: getActiveBlogId() })
       return { content: [{ type: 'text', text: `Post "${args.slug}" updated successfully.` }] }
     } catch (err) { return errorResult(err) }
   },
@@ -83,7 +133,7 @@ server.tool(
       const result = await apiCall<{
         data: Array<{ title: string; slug: string; status: string; tags: string[] }>
         pagination: { total: number; page: number; total_pages: number }
-      }>(`/posts?${params}`)
+      }>(`/posts?${params}`, { blogId: getActiveBlogId() })
       const lines = result.data.map((p) => `- [${p.status}] ${p.title} (/${p.slug})${p.tags.length ? ` [${p.tags.join(', ')}]` : ''}`)
       return { content: [{ type: 'text', text: `${result.pagination.total} posts (page ${result.pagination.page}/${result.pagination.total_pages})\n\n${lines.join('\n')}` }] }
     } catch (err) { return errorResult(err) }
@@ -97,7 +147,7 @@ server.tool(
   { slug: z.string().describe('Post slug') },
   async (args) => {
     try {
-      const post = await apiCall<Record<string, unknown>>(`/posts/${args.slug}`)
+      const post = await apiCall<Record<string, unknown>>(`/posts/${args.slug}`, { blogId: getActiveBlogId() })
       return { content: [{ type: 'text', text: `Title: ${post.title}\nSlug: ${post.slug}\nStatus: ${post.status}\nTags: ${(post.tags as string[])?.join(', ') || 'none'}\nCreated: ${post.created_at}\n\n--- Content (Markdown) ---\n${post.content_md}` }] }
     } catch (err) { return errorResult(err) }
   },
@@ -110,8 +160,8 @@ server.tool(
   { slug: z.string().describe('Slug of the post to delete') },
   async (args) => {
     try {
-      const post = await apiCall<{ title: string }>(`/posts/${args.slug}`)
-      await apiCall(`/posts/${args.slug}`, { method: 'DELETE' })
+      const post = await apiCall<{ title: string }>(`/posts/${args.slug}`, { blogId: getActiveBlogId() })
+      await apiCall(`/posts/${args.slug}`, { method: 'DELETE', blogId: getActiveBlogId() })
       return { content: [{ type: 'text', text: `Post "${post.title}" (/${args.slug}) deleted.` }] }
     } catch (err) { return errorResult(err) }
   },
@@ -130,6 +180,7 @@ server.tool(
       const result = await apiCall<{ slug: string; status: string; scheduled_at: string }>(`/posts/${args.slug}/schedule`, {
         method: 'POST',
         body: { scheduled_at: args.scheduled_at },
+        blogId: getActiveBlogId(),
       })
       return { content: [{ type: 'text', text: `Post "${result.slug}" scheduled for ${result.scheduled_at}` }] }
     } catch (err) { return errorResult(err) }
