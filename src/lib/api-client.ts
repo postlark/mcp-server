@@ -17,20 +17,24 @@ export async function apiCall<T>(
     method?: string
     body?: unknown
     blogId?: string
+    public?: boolean
   } = {},
 ): Promise<T> {
-  const apiKey = process.env.POSTLARK_API_KEY
-  if (!apiKey) {
-    throw new PostlarkApiError(
-      401,
-      'POSTLARK_API_KEY 환경변수가 설정되지 않았습니다. claude mcp add postlark 실행 시 환경변수를 추가하세요.',
-    )
-  }
-
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   }
+
+  if (!opts.public) {
+    const apiKey = process.env.POSTLARK_API_KEY
+    if (!apiKey) {
+      throw new PostlarkApiError(
+        401,
+        'POSTLARK_API_KEY 환경변수가 설정되지 않았습니다. claude mcp add postlark 실행 시 환경변수를 추가하세요.',
+      )
+    }
+    headers.Authorization = `Bearer ${apiKey}`
+  }
+
   if (opts.blogId) headers['X-Blog-Id'] = opts.blogId
 
   const res = await fetch(`${API_BASE}${path}`, {

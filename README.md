@@ -29,8 +29,12 @@ Get your API key from [app.postlark.ai](https://app.postlark.ai) → Blog Settin
 | `list_posts` | List posts with status/tag filters |
 | `get_post` | Get a single post with full Markdown content |
 | `delete_post` | Permanently delete a post by slug |
-| `schedule_post` | Schedule future publication (Creator+ plan, coming soon) |
-| `get_analytics` | Blog analytics overview (Starter+ plan, coming soon) |
+| `schedule_post` | Schedule future publication (Creator+ plan) |
+| `list_blogs` | List all blogs owned by the user |
+| `set_active_blog` | Switch active blog for multi-blog management |
+| `get_analytics` | Blog analytics overview (Starter+ plan) |
+| `search_posts` | Full-text search within your blog |
+| `discover_posts` | Discover posts across all Postlark blogs (public, no auth) |
 
 ## Usage Examples
 

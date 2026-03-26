@@ -7,7 +7,7 @@ import { apiCall, PostlarkApiError } from './lib/api-client.js'
 
 const server = new McpServer({
   name: 'postlark',
-  version: '0.2.0',
+  version: '0.2.1',
 })
 
 /** 에러를 사용자 친화적 메시지로 변환 */
@@ -194,6 +194,73 @@ server.tool(
   { period: z.enum(['7d', '30d', '90d']).optional().describe('Time period') },
   async () => {
     return { content: [{ type: 'text', text: 'Analytics feature is coming soon. Basic view counts will be available with Starter+ plan.' }], isError: true as const }
+  },
+)
+
+// ─── search_posts — 내 블로그 검색 ───
+server.tool(
+  'search_posts',
+  'Search published posts on your blog using full-text search (title, description, headings, tags).',
+  {
+    q: z.string().describe('Search query'),
+    page: z.number().optional().describe('Page number (default 1)'),
+    per_page: z.number().optional().describe('Items per page (default 20, max 50)'),
+  },
+  async (args) => {
+    try {
+      const params = new URLSearchParams({ q: args.q })
+      if (args.page) params.set('page', String(args.page))
+      if (args.per_page) params.set('per_page', String(args.per_page))
+      const result = await apiCall<{
+        data: Array<{ slug: string; title: string; meta_description: string; tags: string[]; created_at: string }>
+        pagination: { total: number; page: number; total_pages: number }
+      }>(`/search?${params}`, { blogId: getActiveBlogId() })
+      if (result.data.length === 0) {
+        return { content: [{ type: 'text', text: `No results for "${args.q}".` }] }
+      }
+      const lines = result.data.map((p) =>
+        `- ${p.title} (/${p.slug})${p.tags.length ? ` [${p.tags.join(', ')}]` : ''}\n  ${p.meta_description || '(no description)'}`,
+      )
+      return { content: [{ type: 'text', text: `${result.pagination.total} results (page ${result.pagination.page}/${result.pagination.total_pages})\n\n${lines.join('\n')}` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
+// ─── discover_posts — 플랫폼 전체 검색 (인증 불필요) ───
+server.tool(
+  'discover_posts',
+  'Discover published posts across ALL Postlark blogs. No authentication needed. Searches title, description, headings, and tags.',
+  {
+    q: z.string().describe('Search query'),
+    tag: z.string().optional().describe('Filter by tag'),
+    page: z.number().optional().describe('Page number (default 1)'),
+    per_page: z.number().optional().describe('Items per page (default 20, max 50)'),
+  },
+  async (args) => {
+    try {
+      const params = new URLSearchParams({ q: args.q })
+      if (args.tag) params.set('tag', args.tag)
+      if (args.page) params.set('page', String(args.page))
+      if (args.per_page) params.set('per_page', String(args.per_page))
+      const result = await apiCall<{
+        data: Array<{
+          title: string; slug: string; excerpt: string; tags: string[]
+          created_at: string; blog_name: string; blog_domain: string; url: string; llms_txt_url: string | null
+        }>
+        pagination: { total: number; page: number; total_pages: number }
+      }>(`/discover?${params}`, { public: true })
+      if (result.data.length === 0) {
+        return { content: [{ type: 'text', text: `No posts found for "${args.q}" across Postlark.` }] }
+      }
+      const lines = result.data.map((p) => {
+        const parts = [`- ${p.title} (${p.blog_name})`, `  ${p.url}`]
+        if (p.excerpt) parts.push(`  ${p.excerpt}`)
+        if (p.tags.length) parts.push(`  Tags: ${p.tags.join(', ')}`)
+        if (p.llms_txt_url) parts.push(`  llms.txt: ${p.llms_txt_url}`)
+        return parts.join('\n')
+      })
+      return { content: [{ type: 'text', text: `${result.pagination.total} posts found (page ${result.pagination.page}/${result.pagination.total_pages})\n\n${lines.join('\n')}` }] }
+    } catch (err) { return errorResult(err) }
   },
 )
 
