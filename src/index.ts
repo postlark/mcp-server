@@ -3,12 +3,24 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { apiCall, PostlarkApiError } from './lib/api-client.js'
+import { PostlarkApiError, apiCall as sharedApiCall, type ApiCallOptions } from '@postlark/shared'
+
+const MCP_VERSION = '0.2.1'
 
 const server = new McpServer({
   name: 'postlark',
-  version: '0.2.1',
+  version: MCP_VERSION,
 })
+
+/** env var 기반 apiCall 래퍼 — 기존 11개 도구 코드 변경 없이 동작 */
+function apiCall<T>(path: string, opts: Omit<ApiCallOptions, 'apiKey' | 'apiBase' | 'userAgent'> = {}) {
+  return sharedApiCall<T>(path, {
+    ...opts,
+    apiKey: process.env.POSTLARK_API_KEY,
+    apiBase: process.env.POSTLARK_API_BASE,
+    userAgent: `postlark-mcp/${MCP_VERSION}`,
+  })
+}
 
 /** 에러를 사용자 친화적 메시지로 변환 */
 function errorResult(err: unknown) {
