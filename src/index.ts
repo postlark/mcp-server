@@ -222,10 +222,15 @@ server.tool(
       const period = args.period ?? '30d'
       const result = await apiCall<{
         total_views_7d: number; total_views_30d: number
+        total_uv_7d: number; total_uv_30d: number
         top_posts: Array<{ slug: string; title: string; views: number }>
-        daily_views: Array<{ date: string; views: number }>
+        daily_views: Array<{ date: string; views: number; uv: number }>
       }>(`/analytics/overview?period=${period}`, { blogId: getActiveBlogId() })
-      const lines = [`Views (7d): ${result.total_views_7d}`, `Views (30d): ${result.total_views_30d}`, '']
+      const lines = [
+        `Views (7d): ${result.total_views_7d}  |  Views (30d): ${result.total_views_30d}`,
+        `UV    (7d): ${result.total_uv_7d}  |  UV    (30d): ${result.total_uv_30d}`,
+        '',
+      ]
       if (result.top_posts.length) {
         lines.push('Top Posts:')
         result.top_posts.forEach((p) => lines.push(`  ${p.views} views — ${p.title} (/${p.slug})`))
