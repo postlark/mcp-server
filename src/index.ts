@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { PostlarkApiError, apiCall as sharedApiCall, type ApiCallOptions } from '@postlark/shared'
 
-const MCP_VERSION = '0.2.1'
+const MCP_VERSION = '0.3.0'
 
 const server = new McpServer({
   name: 'postlark',
@@ -179,6 +179,19 @@ server.tool(
   },
 )
 
+// ─── publish_post ───
+server.tool(
+  'publish_post',
+  'Publish a draft post. Changes status from draft to published.',
+  { slug: z.string().describe('Slug of the post to publish') },
+  async (args) => {
+    try {
+      await apiCall(`/posts/${args.slug}/publish`, { method: 'POST', blogId: getActiveBlogId() })
+      return { content: [{ type: 'text', text: `Post "/${args.slug}" published.` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
 // ─── schedule_post (Creator+ 전용) ───
 server.tool(
   'schedule_post',
@@ -199,13 +212,26 @@ server.tool(
   },
 )
 
-// ─── get_analytics (스텁) ───
+// ─── get_analytics ───
 server.tool(
   'get_analytics',
-  'Get blog analytics overview (coming soon — Starter+ plan required).',
-  { period: z.enum(['7d', '30d', '90d']).optional().describe('Time period') },
-  async () => {
-    return { content: [{ type: 'text', text: 'Analytics feature is coming soon. Basic view counts will be available with Starter+ plan.' }], isError: true as const }
+  'Get blog analytics overview (Starter+ plan required). Shows view counts and top posts.',
+  { period: z.enum(['7d', '30d', '90d']).optional().describe('Time period (default 30d)') },
+  async (args) => {
+    try {
+      const period = args.period ?? '30d'
+      const result = await apiCall<{
+        total_views_7d: number; total_views_30d: number
+        top_posts: Array<{ slug: string; title: string; views: number }>
+        daily_views: Array<{ date: string; views: number }>
+      }>(`/analytics/overview?period=${period}`, { blogId: getActiveBlogId() })
+      const lines = [`Views (7d): ${result.total_views_7d}`, `Views (30d): ${result.total_views_30d}`, '']
+      if (result.top_posts.length) {
+        lines.push('Top Posts:')
+        result.top_posts.forEach((p) => lines.push(`  ${p.views} views — ${p.title} (/${p.slug})`))
+      }
+      return { content: [{ type: 'text', text: lines.join('\n') }] }
+    } catch (err) { return errorResult(err) }
   },
 )
 
@@ -272,6 +298,59 @@ server.tool(
         return parts.join('\n')
       })
       return { content: [{ type: 'text', text: `${result.pagination.total} posts found (page ${result.pagination.page}/${result.pagination.total_pages})\n\n${lines.join('\n')}` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
+// ─── create_blog ───
+server.tool(
+  'create_blog',
+  'Create a new blog on Postlark.',
+  {
+    slug: z.string().describe('Blog subdomain slug (e.g. "my-blog" → my-blog.postlark.ai)'),
+    name: z.string().describe('Blog display name'),
+    description: z.string().optional().describe('Blog description'),
+  },
+  async (args) => {
+    try {
+      const result = await apiCall<{ id: string; slug: string; name: string; url: string }>('/blogs', {
+        method: 'POST',
+        body: { slug: args.slug, name: args.name, description: args.description },
+      })
+      return { content: [{ type: 'text', text: `Blog created: ${result.name} (${result.slug})\nURL: ${result.url}\nID: ${result.id}` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
+// ─── update_blog ───
+server.tool(
+  'update_blog',
+  'Update blog settings (name, description).',
+  {
+    blog_id: z.string().describe('Blog ID to update'),
+    name: z.string().optional().describe('New display name'),
+    description: z.string().optional().describe('New description'),
+  },
+  async (args) => {
+    try {
+      const body: Record<string, string> = {}
+      if (args.name !== undefined) body.name = args.name
+      if (args.description !== undefined) body.description = args.description
+      await apiCall(`/blogs/${args.blog_id}`, { method: 'PUT', body })
+      return { content: [{ type: 'text', text: `Blog ${args.blog_id} updated.` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
+// ─── delete_blog ───
+server.tool(
+  'delete_blog',
+  'Delete a blog and all its content permanently. This cannot be undone.',
+  { blog_id: z.string().describe('Blog ID to delete') },
+  async (args) => {
+    try {
+      await apiCall(`/blogs/${args.blog_id}`, { method: 'DELETE' })
+      return { content: [{ type: 'text', text: `Blog ${args.blog_id} deleted permanently.` }] }
     } catch (err) { return errorResult(err) }
   },
 )
