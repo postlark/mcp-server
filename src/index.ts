@@ -212,6 +212,31 @@ server.tool(
   },
 )
 
+// ─── upload_image ───
+server.tool(
+  'upload_image',
+  'Upload an image to the blog media storage. Returns a URL to use in Markdown posts. Supported formats: JPEG, PNG, GIF, WebP. Maximum 5MB.',
+  {
+    data: z.string().describe('Base64-encoded image data'),
+    filename: z.string().optional().describe('Original filename (e.g. "photo.jpg")'),
+    content_type: z.enum(['image/jpeg', 'image/png', 'image/gif', 'image/webp']).describe('MIME type of the image'),
+  },
+  async (args) => {
+    try {
+      if (args.data.length > 7_000_000) {
+        return { content: [{ type: 'text', text: 'Error: Image too large. Maximum size is 5MB (base64 limit ~6.7MB).' }], isError: true }
+      }
+      const result = await apiCall<{ url: string }>('/upload', {
+        method: 'POST',
+        body: { data: args.data, filename: args.filename || 'image', content_type: args.content_type },
+        blogId: getActiveBlogId(),
+      })
+      const name = args.filename || 'image'
+      return { content: [{ type: 'text', text: `Image uploaded: ${result.url}\n\nMarkdown:\n![${name}](${result.url})` }] }
+    } catch (err) { return errorResult(err) }
+  },
+)
+
 // ─── get_analytics ───
 server.tool(
   'get_analytics',
